@@ -63,3 +63,10 @@ Host: 172.23.0.101
 User-Agent: curl/7.64.1
 Accept: */*
 ```
+
+Local routing change (you'll have to manually remove this, when you're done):
+
+```
+❯ netstat -rn | grep 172
+172.23/24          10.0.75.2          UGSc          tap1
+```
