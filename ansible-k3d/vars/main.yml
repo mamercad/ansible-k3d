@@ -1,0 +1,11 @@
+---
+# vars file for ansible-k3d
+
+HOME: "{{ lookup('env', 'HOME') }}"
+
+local:
+  kube: "{{ HOME }}/.kube"
+  source: "{{ HOME }}/src/github.com"
+
+k3d:
+  name: k3d-default
