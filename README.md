@@ -43,3 +43,23 @@ $ pip install -r requirements.txt
 
 $ ANSIBLE_ROLES_PATH=ansible-k3d ansible-playbook ansible-k3d/tests/test.yml
 ```
+
+Verify again if you like:
+
+```
+❯ kubectl --kubeconfig ~/.kube/config.k3d-default get svc whoareyou-service
+NAME                TYPE           CLUSTER-IP     EXTERNAL-IP    PORT(S)        AGE
+whoareyou-service   LoadBalancer   10.43.10.189   172.23.0.101   80:31094/TCP   11m
+
+❯ curl 172.23.0.101
+Hostname: whoareyou-deployment-74bff9c468-wn4n5
+IP: 127.0.0.1
+IP: ::1
+IP: 10.42.2.4
+IP: fe80::e07b:3bff:fe36:2e74
+RemoteAddr: 10.42.2.1:32404
+GET / HTTP/1.1
+Host: 172.23.0.101
+User-Agent: curl/7.64.1
+Accept: */*
+```
