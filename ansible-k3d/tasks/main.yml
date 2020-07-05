@@ -170,6 +170,10 @@
   when: traefik_route.rc == 0
   become: yes
 
+- name: give the route a minute
+  pause:
+    minutes: 1
+
 - name: curl the traefik endpoint
   shell:
     curl -v http://{{ traefik_endpoint.stdout }}
