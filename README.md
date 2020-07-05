@@ -1,6 +1,6 @@
 # ansible-k3d
 
-Ansible role for Rancher's `k3d` (assumes MacOS and Docker). Deploys `tuntap` since HyperKit doesn't uses bridged networking (this makes `metallb` work on the same L2). Basically, following [this](https://blog.kubernauts.io/k3s-with-k3d-and-metallb-on-mac-923a3255c36e) nice writeup.
+Ansible role for Rancher's [`k3d`](https://github.com/rancher/k3d) (assumes MacOS and Docker). Deploys [`tuntap`](https://formulae.brew.sh/cask/tuntap) since HyperKit doesn't uses bridged networking (this makes [`metallb`](https://metallb.universe.tf) work on the same L2). Basically, following [this](https://blog.kubernauts.io/k3s-with-k3d-and-metallb-on-mac-923a3255c36e) nice writeup. Also, installs the ever-so-lovely [`k9s`](https://github.com/derailed/k9s) interface. Keep the dev-ing local!
 
 ```bash
 ❯ uname -a
