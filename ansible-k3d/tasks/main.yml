@@ -122,7 +122,7 @@
           - name: default
             protocol: layer2
             addresses:
-            - "{{ traefik_network.stdout }}.100-{{ traefik_network.stdout }}.199"
+            - {{ traefik_network.stdout }}.100-{{ traefik_network.stdout }}.199
   when: metallb_config.rc != 0
 
 - name: check if tap1 exists
@@ -169,5 +169,33 @@
 - name: curl the traefik endpoint
   shell:
     curl -v http://{{ traefik_endpoint.stdout }}
+  args:
+    warn: false # i actually want to curl
   register: traefik_fetch
   changed_when: false # can't be idempotent
+
+- name: deploy the whoareyou service
+  k8s:
+    state: present
+    kubeconfig: "{{ local.kube }}/config.{{ k3d.name }}"
+    namespace: default
+    src: "{{ HOME }}/src/github.com/arashkaffamanesh/k3d-k3s-metallb/whoareyou.yml"
+
+- name: get the whoareyou endpoint
+  shell: |
+    kubectl --kubeconfig ~/.kube/config.k3d-default get svc -n default whoareyou-service -o json | jq -r '.status.loadBalancer.ingress[0].ip'
+  register: whoareyou_endpoint
+  failed_when: false
+  changed_when: false # can't be idempotent
+
+- name: curl the whoareyou service
+  shell:
+    curl -v http://{{ whoareyou_endpoint.stdout }}
+  args:
+    warn: false # i actually want to curl
+  register: whoareyou_fetch
+  changed_when: false # can't be idempotent
+
+- name: show the whoareyou output
+  debug:
+    var: whoareyou_fetch.stdout
