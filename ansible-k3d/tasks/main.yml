@@ -87,6 +87,10 @@
     kubectl --kubeconfig {{ local.kube }}/config.{{ k3d.name }} create secret generic -n metallb-system memberlist --from-literal=secretkey="$(openssl rand -base64 128)"
   when: metallb_memberlist_secret.rc != 0
 
+- name: give traefik a minute
+  pause:
+    minutes: 1
+
 - name: get the traefik endpoint
   shell: |
     kubectl --kubeconfig {{ local.kube }}/config.{{ k3d.name }} get svc -n kube-system traefik -o json | jq -r '.status.loadBalancer.ingress[0].ip'
@@ -180,6 +184,10 @@
     kubeconfig: "{{ local.kube }}/config.{{ k3d.name }}"
     namespace: default
     src: "{{ HOME }}/src/github.com/arashkaffamanesh/k3d-k3s-metallb/whoareyou.yml"
+
+- name: give whoareyou a minute
+  pause:
+    minutes: 1
 
 - name: get the whoareyou endpoint
   shell: |
