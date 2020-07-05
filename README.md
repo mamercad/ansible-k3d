@@ -64,7 +64,7 @@ User-Agent: curl/7.64.1
 Accept: */*
 ```
 
-Local routing change (you'll have to manually remove this, when you're done):
+You'll have to manually remove this route when you're done (`sudo route delete -net 172.23/24`):
 
 ```
 ❯ netstat -rn | grep 172
