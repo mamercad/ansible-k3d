@@ -35,5 +35,11 @@ destination: 172.22.0.0
 Running the role locally:
 
 ```bash
+$ virtualenv -p python3 venv
+
+$ source venv/bin/activate
+
+$ pip install -r requirements.txt
+
 $ ANSIBLE_ROLES_PATH=ansible-k3d ansible-playbook ansible-k3d/tests/test.yml
 ```
