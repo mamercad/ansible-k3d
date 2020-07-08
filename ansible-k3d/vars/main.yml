@@ -3,9 +3,32 @@
 
 HOME: "{{ lookup('env', 'HOME') }}"
 
+packages:
+  brews:
+    - derailed/k9s/k9s
+    - k3d
+  casks:
+    - tuntap
+
 local:
   kube: "{{ HOME }}/.kube"
   source: "{{ HOME }}/src/github.com"
 
 k3d:
-  name: k3d-default
+  name: k3s-default
+  workers: 3
+
+metallb:
+  secret:
+    memberlist: hunter2
+  configmap:
+    config:
+      first_ip: 100
+      last_ip: 199
+
+tuntap:
+  interface: tap1
+  local_gateway: 192.168.99.1
+  local_gateway_mask: 30
+  host_gateway: 192.168.99.2
+  netmask: 255.255.252.0

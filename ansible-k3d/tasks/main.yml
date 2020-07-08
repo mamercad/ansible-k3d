@@ -1,31 +1,34 @@
 ---
 # tasks file for ansible-k3d
 
-- name: install k9s
-  homebrew:
-    name: derailed/k9s/k9s
-    state: present
+- name: set up kubeconfig fact
+  set_fact:
+    kubeconfig: "{{ local.kube }}/config.{{ k3d.name }}"
 
-- name: install k3d
+- name: install brews
   homebrew:
-    name: k3d
+    name: "{{ item }}"
     state: present
+  loop: "{{ packages.brews }}"
+  when: ansible_distribution == 'MacOSX'
 
-- name: install tuntap
+- name: install casks
   homebrew_cask:
-    name: tuntap
+    name: "{{ item }}"
     state: present
+  loop: "{{ packages.casks }}"
+  when: ansible_distribution == 'MacOSX'
 
 - name: k3d list
   shell: |
     k3d list
   register: k3d_list
-  failed_when: false
+  failed_when: false # cluster might not exist
   changed_when: false # can't be idempotent
 
 - name: k3d create cluster
   shell: |
-    k3d create --workers 3
+    k3d create --name {{ k3d.name }} --workers {{ k3d.workers }}
   register: k3d_create
   when: k3d_list.rc != 0
   async: 10
@@ -49,14 +52,20 @@
 
 - name: write kubeconfig
   copy:
-    dest: "{{ local.kube }}/config.{{ k3d.name }}"
+    dest: "{{ kubeconfig }}"
     content: |
       {{ k3d_kubeconfig.stdout }}
+    backup: yes
 
-- name: clone https://github.com/arashkaffamanesh/k3d-k3s-metallb.git
+- name: create local source root
+  file:
+    state: directory
+    path: "{{ local.source }}"
+
+- name: clone https://github.com/mamercad/k3d-k3s-metallb.git
   git:
-    repo: https://github.com/arashkaffamanesh/k3d-k3s-metallb.git
-    dest: "{{ local.source }}/arashkaffamanesh/k3d-k3s-metallb"
+    repo: https://github.com/mamercad/k3d-k3s-metallb.git
+    dest: "{{ local.source }}/mamercad/k3d-k3s-metallb"
 
 - name: clone https://github.com/metallb/metallb.git
   git:
@@ -66,54 +75,51 @@
 - name: deploy metallb namespace
   k8s:
     state: present
-    kubeconfig: "{{ local.kube }}/config.{{ k3d.name }}"
+    kubeconfig: "{{ kubeconfig }}"
     src: "{{ local.source }}/metallb/metallb/manifests/namespace.yaml"
 
 - name: deploy metallb
   k8s:
     state: present
-    kubeconfig: "{{ local.kube }}/config.{{ k3d.name }}"
+    kubeconfig: "{{ kubeconfig }}"
     src: "{{ local.source }}/metallb/metallb/manifests/metallb.yaml"
 
-- name: check metallb memberlist secret
-  shell: |
-    kubectl --kubeconfig {{ local.kube }}/config.{{ k3d.name }} get secret -n metallb-system memberlist
-  register: metallb_memberlist_secret
-  failed_when: false
-  changed_when: false # can't be idempotent
-
 - name: create metallb memberlist secret
-  shell: |
-    kubectl --kubeconfig {{ local.kube }}/config.{{ k3d.name }} create secret generic -n metallb-system memberlist --from-literal=secretkey="$(openssl rand -base64 128)"
-  when: metallb_memberlist_secret.rc != 0
+  k8s:
+    state: present
+    kubeconfig: "{{ kubeconfig }}"
+    definition:
+      api_version: v1
+      kind: Secret
+      type: Opaque
+      metadata:
+        name: memberlist
+        namespace: metallb-system
+      data:
+        secretkey: "{{ metallb.secret.memberlist | b64encode }}"
 
-- name: give traefik a minute
-  pause:
-    minutes: 1
-
-- name: get the traefik endpoint
+- name: get the traefik endpoint # TODO: hacks; what's a better way?
   shell: |
-    kubectl --kubeconfig {{ local.kube }}/config.{{ k3d.name }} get svc -n kube-system traefik -o json | jq -r '.status.loadBalancer.ingress[0].ip'
+    kubectl --kubeconfig {{ kubeconfig }} get svc -n kube-system traefik -o json | jq -r '.status.loadBalancer.ingress[0].ip'
   register: traefik_endpoint
+  until: "'172.' in traefik_endpoint.stdout"
+  retries: 30
+  delay: 10
   changed_when: false # can't be idempotent
 
-- name: get the traefik network (hacky; first 3 octets)
+- name: get the traefik network # TODO: hacky; first 3 octets; what's a better way?
   shell: |
-    kubectl --kubeconfig {{ local.kube }}/config.{{ k3d.name }} get svc -n kube-system traefik -o json | jq -r '.status.loadBalancer.ingress[0].ip' | cut -d\. -f1-3
+    kubectl --kubeconfig {{ kubeconfig }} get svc -n kube-system traefik -o json | jq -r '.status.loadBalancer.ingress[0].ip' | cut -d\. -f1-3
   register: traefik_network
-  changed_when: false # can't be idempotent
-
-- name: check if metallb config exists
-  shell: |
-    kubectl --kubeconfig {{ local.kube }}/config.{{ k3d.name }} get configmap -n metallb-system config
-  register: metallb_config
-  failed_when: false
+  until: "'172.' in traefik_network.stdout"
+  retries: 30
+  delay: 10
   changed_when: false # can't be idempotent
 
 - name: create the metallb config
   k8s:
     state: present
-    kubeconfig: "{{ local.kube }}/config.{{ k3d.name }}"
+    kubeconfig: "{{ kubeconfig }}"
     definition:
       apiVersion: v1
       kind: ConfigMap
@@ -126,51 +132,57 @@
           - name: default
             protocol: layer2
             addresses:
-            - {{ traefik_network.stdout }}.100-{{ traefik_network.stdout }}.199
-  when: metallb_config.rc != 0
+            - {{ traefik_network.stdout }}.{{ metallb.configmap.config.first_ip }}-{{ traefik_network.stdout }}.{{ metallb.configmap.config.last_ip }}
 
-- name: check if tap1 exists
+- name: plumb the tuntap interface
   shell: |
-    ifconfig tap1
-  register: tap1
-  failed_when: false
+    ifconfig {{ tuntap.interface }} {{ tuntap.local_gateway }}/{{ tuntap.local_gateway_mask }} up
+  register: tuntap_plumb
+  until: tuntap_plumb.rc == 0
+  retries: 30
+  delay: 10
   changed_when: false # can't be idempotent
+  become: yes
+  tags: tuntap
+
+- name: check if tuntap in use # TODO: very hacky :(
+  shell: |
+    ifconfig {{ tuntap.interface }} | grep -E 'pid \d+'
+  register: tuntap_open
+  tags: tuntap
 
 - name: docker tuntap - https://blog.kubernauts.io/k3s-with-k3d-and-metallb-on-mac-923a3255c36e
   shell: |
-    k3d stop {{ k3.name }};
+    k3d stop {{ k3d.name }};
     ./docker-tuntap-osx/sbin/docker_tap_install.sh;
     sleep 60;
     ./docker-tuntap-osx/sbin/docker_tap_up.sh;
-    ifconfig tap1;
-    ping -c1 10.0.75.1;
-    ping -c1 10.0.75.2;
-    k3d start {{ k3.name }}
+    ifconfig {{ tuntap.interface }};
+    ping -c1 {{ tuntap.local_gateway }};
+    ping -c1 {{ tuntap.host_gateway }};
+    sleep 60;
+    k3d start {{ k3d.name }};
   args:
-    chdir: "{{ HOME }}/src/github.com/arashkaffamanesh/k3d-k3s-metallb"
-  when: tap1.rc != 0
-
-- name: check if tap1 exists, again
-  shell: |
-    ifconfig tap1
-  register: tap1
-  failed_when: false
-  changed_when: false # can't be idempotent
+    chdir: "{{ HOME }}/src/github.com/mamercad/k3d-k3s-metallb"
+  when: tuntap_open.rc != 0
+  tags: tuntap
 
 - name: check the route to the traefik network
   shell: |
     route get -net {{ traefik_network.stdout }}.0/24 | grep '^destination: default'
   register: traefik_route
-  failed_when: false
+  failed_when: false # might not exist yet
   changed_when: false # can't be idempotent
+  tags: tuntap
 
 - name: add the route to the traefik network (if necessary)
   shell: |
-    route add -net {{ traefik_network.stdout }}.0/24 -netmask 255.255.255.0 10.0.75.2
+    route add -net {{ traefik_network.stdout }}.0/24 -netmask 255.255.255.0 {{ tuntap.host_gateway }}
   when: traefik_route.rc == 0
   become: yes
+  tags: tuntap
 
-- name: give the route a minute
+- name: give the route a minute # TODO: do it better
   pause:
     minutes: 1
 
@@ -185,17 +197,17 @@
 - name: deploy the whoareyou service
   k8s:
     state: present
-    kubeconfig: "{{ local.kube }}/config.{{ k3d.name }}"
+    kubeconfig: "{{ kubeconfig }}"
     namespace: default
     src: "{{ HOME }}/src/github.com/arashkaffamanesh/k3d-k3s-metallb/whoareyou.yml"
 
-- name: give whoareyou a minute
+- name: give whoareyou a minute # TODO: do it better
   pause:
     minutes: 1
 
 - name: get the whoareyou endpoint
   shell: |
-    kubectl --kubeconfig ~/.kube/config.k3d-default get svc -n default whoareyou-service -o json | jq -r '.status.loadBalancer.ingress[0].ip'
+    kubectl --kubeconfig {{ kubeconfig }} get svc -n default whoareyou-service -o json | jq -r '.status.loadBalancer.ingress[0].ip'
   register: whoareyou_endpoint
   failed_when: false
   changed_when: false # can't be idempotent
