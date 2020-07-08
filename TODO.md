@@ -1,2 +1,3 @@
 * Get rid of the `pause` stuff
 * Add "uninstall" that puts everything back
+* Still references to 10.0.75 ...
