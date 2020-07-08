@@ -12,7 +12,7 @@ Docker version 19.03.8, build afacb8b
 ❯ ifconfig tap1 2>&1 | head -1
 tap1: flags=8843<UP,BROADCAST,RUNNING,SIMPLEX,MULTICAST> mtu 1500
 
-❯ kubectl --kubeconfig ~/.kube/config.k3d-default get nodes
+❯ kubectl --kubeconfig ~/.kube/config.k3s-default get nodes
 NAME                       STATUS   ROLES    AGE   VERSION
 k3d-k3s-default-worker-0   Ready    <none>   13h   v1.18.4+k3s1
 k3d-k3s-default-worker-1   Ready    <none>   13h   v1.18.4+k3s1
@@ -25,7 +25,7 @@ destination: 172.22.0.0
        mask: 255.255.255.0
     gateway: 10.0.75.2
 
-❯ kubectl --kubeconfig ~/.kube/config.k3d-default get svc -n kube-system traefik -o json | jq -r '.status.loadBalancer.ingress[0].ip'
+❯ kubectl --kubeconfig ~/.kube/config.k3s-default get svc -n kube-system traefik -o json | jq -r '.status.loadBalancer.ingress[0].ip'
 172.22.0.3
 
 ❯ curl 172.22.0.3
@@ -47,7 +47,7 @@ $ ANSIBLE_ROLES_PATH=ansible-k3d ansible-playbook ansible-k3d/tests/test.yml
 Verify again if you like:
 
 ```
-❯ kubectl --kubeconfig ~/.kube/config.k3d-default get svc whoareyou-service
+❯ kubectl --kubeconfig ~/.kube/config.k3s-default get svc whoareyou-service
 NAME                TYPE           CLUSTER-IP     EXTERNAL-IP    PORT(S)        AGE
 whoareyou-service   LoadBalancer   10.43.10.189   172.23.0.101   80:31094/TCP   11m
 
