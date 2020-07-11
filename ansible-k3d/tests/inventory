@@ -1,2 +1,5 @@
-localhost
-
+all:
+  hosts:
+    localhost:
+      ansible_connection: local
+      ansible_python_interpreter: ~/Code/github.com/mamercad/ansible-k3d/venv/bin/python3

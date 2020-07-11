@@ -136,7 +136,8 @@
 
 - name: plumb the tuntap interface
   shell: |
-    ifconfig {{ tuntap.interface }} {{ tuntap.local_gateway }}/{{ tuntap.local_gateway_mask }} up
+    ifconfig {{ tuntap.interface }} {{ tuntap.local_gateway }}/{{ tuntap.local_gateway_mask }} up;
+    docker run --rm --privileged --net=host --pid=host alpine ifconfig {{ tuntap.host_interface }} {{ tuntap.host_gateway }} netmask {{ tuntap.netmask }} up;
   register: tuntap_plumb
   until: tuntap_plumb.rc == 0
   retries: 30
@@ -218,6 +219,8 @@
   args:
     warn: false # i actually want to curl
   register: whoareyou_fetch
+  retries: 30
+  delay: 10
   changed_when: false # can't be idempotent
 
 - name: show the whoareyou output
